@@ -1,0 +1,290 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  super_admin
+  admin
+  agent
+  developer
+  notary
+  public_user
+}
+
+enum ScopeType {
+  platform
+  city
+  agency
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  phone        String?
+  passwordHash String?
+  fullName     String
+  avatarUrl    String?
+  status       String   @default("active") // active | suspended
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  roles        UserRole[]
+  agent        Agent?
+  developer    Developer?
+  leads        Lead[]
+  favorites    Favorite[]
+  savedSearches SavedSearch[]
+  auditEvents  AuditLog[]       @relation("actor")
+  txParticipations TransactionParticipant[]
+
+  @@map("users")
+}
+
+model UserRole {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role            Role
+  scopeType       ScopeType?
+  scopeId         String?   // e.g. agency id or city name, depending on scopeType
+  isPublicProfile Boolean   @default(false)
+  status          String    @default("approved") // pending | approved | suspended
+  createdAt       DateTime  @default(now())
+
+  @@index([userId])
+  @@index([role, scopeType, scopeId])
+  @@map("user_roles")
+}
+
+model Agency {
+  id          String   @id @default(uuid())
+  name        String
+  city        String
+  address     String?
+  phone       String?
+  email       String?
+  logoUrl     String?
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+
+  agents      Agent[]
+  properties  Property[]
+
+  @@map("agencies")
+}
+
+model Agent {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agencyId           String?
+  agency             Agency?  @relation(fields: [agencyId], references: [id])
+  commissionRate     Decimal? @db.Decimal(5, 2)
+  contractType       String?  // auto_entrepreneur | informal
+  verificationStatus String   @default("pending") // pending | approved | rejected
+  createdAt          DateTime @default(now())
+
+  properties         Property[]
+
+  @@map("agents")
+}
+
+model Developer {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName        String
+  slug               String   @unique
+  legalInfo          String?
+  phone              String?
+  description        String?
+  logoUrl            String?
+  verificationStatus String   @default("pending")
+  createdAt          DateTime @default(now())
+
+  projects           Project[]
+
+  @@map("developers")
+}
+
+model Property {
+  id              String   @id @default(uuid())
+  ownerType       String   // agent | developer
+  agentId         String?
+  agent           Agent?   @relation(fields: [agentId], references: [id])
+  agencyId        String?
+  agency          Agency?  @relation(fields: [agencyId], references: [id])
+  city            String
+  district        String?
+  address         String?
+  lat             Float?
+  lng             Float?
+  price           Decimal  @db.Decimal(12, 2)
+  currency        String   @default("MAD")
+  propertyType    String
+  transactionType String   // sale | rent
+  status          String   @default("draft") // draft | pending_review | published | archived
+  title           String
+  slug            String   @unique
+  reference       String?  @unique
+  description     String?
+  surface         Float?
+  bedrooms        Int?
+  bathrooms       Int?
+  titleStatus     String?
+  features        String[] @default([])
+  viewCount       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  publishedAt     DateTime?
+
+  media           PropertyMedia[]
+  leads           Lead[]
+  favorites       Favorite[]
+  transactions    Transaction[]
+
+  @@index([city, status, transactionType])
+  @@map("properties")
+}
+
+model PropertyMedia {
+  id         String   @id @default(uuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  type       String   // image | video | document
+  url        String
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@map("property_media")
+}
+
+model Project {
+  id            String   @id @default(uuid())
+  developerId   String
+  developer     Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  name          String
+  slug          String   @unique
+  city          String
+  district      String?
+  address       String?
+  description   String?
+  amenities     String[] @default([])
+  totalUnits    Int?
+  floors        Int?
+  landSurface   Float?
+  lat           Float?
+  lng           Float?
+  launchDate    DateTime?
+  handoverDate  DateTime?
+  paymentPlan   Json?
+  photos        String[] @default([])
+  status        String   @default("active")
+  viewCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  publishedAt   DateTime?
+
+  units         ProjectUnit[]
+
+  @@map("projects")
+}
+
+model ProjectUnit {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label     String
+  unitType  String
+  surface   Float?
+  bedrooms  Int?
+  floor     String?
+  price     Decimal  @db.Decimal(12, 2)
+  status    String   @default("available") // available | reserved | sold
+
+  @@map("project_units")
+}
+
+model Transaction {
+  id         String   @id @default(uuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id])
+  status     String   @default("open")
+  stage      String   @default("offer") // offer | notary_review | closed
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  participants TransactionParticipant[]
+
+  @@map("transactions")
+}
+
+model TransactionParticipant {
+  id            String      @id @default(uuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  roleInTx      String      // buyer | seller | agent | notary
+  createdAt     DateTime    @default(now())
+
+  @@map("transaction_participants")
+}
+
+model Lead {
+  id           String   @id @default(uuid())
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  publicUserId String?
+  publicUser   User?    @relation(fields: [publicUserId], references: [id])
+  name         String?
+  email        String?
+  phone        String?
+  message      String?
+  status       String   @default("new") // new | contacted | closed
+  createdAt    DateTime @default(now())
+
+  @@map("leads")
+}
+
+model Favorite {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, propertyId])
+  @@map("favorites")
+}
+
+model SavedSearch {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filters   Json
+  createdAt DateTime @default(now())
+
+  @@map("saved_searches")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorUserId  String
+  actor        User     @relation("actor", fields: [actorUserId], references: [id])
+  action       String
+  resourceType String
+  resourceId   String
+  before       Json?
+  after        Json?
+  createdAt    DateTime @default(now())
+
+  @@index([resourceType, resourceId])
+  @@map("audit_log")
+}
