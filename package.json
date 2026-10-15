@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:legacy": "tsx scripts/migrate-from-legacy.ts"
@@ -26,7 +27,8 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/bcryptjs": "^2.4.6",
+    "@types/pg": "^8.11.10",
     "pg": "^8.13.1"
   },
-  "engines": { "node": ">=20" }
+  "engines": { "node": "20.x" }
 }
