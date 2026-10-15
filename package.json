@@ -30,5 +30,5 @@
     "@types/pg": "^8.11.10",
     "pg": "^8.13.1"
   },
-  "engines": { "node": "20.x" }
+"engines": { "node": "24.x" }
 }
